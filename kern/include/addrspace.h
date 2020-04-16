@@ -59,6 +59,9 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
+        paddr_t **pagetable;
+
+        // TODO: might need to implement regions/read/write tracking for as_prepare_load and as_complete_load
 #endif
 };
 

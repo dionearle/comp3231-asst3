@@ -62,6 +62,13 @@ as_create(void)
 	 * Initialize as needed.
 	 */
 
+	// setup the page table, 1024 = 2^10
+    as->pagetable = kmalloc(1024 * sizeof(paddr_t *);
+
+	for(i = 0; i < 1024; i++){
+		as->pagetable[i] = NULL;
+	}
+
 	return as;
 }
 
