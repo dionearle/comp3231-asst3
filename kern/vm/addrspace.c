@@ -189,17 +189,63 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	
+	// if the address space is not valid, we return EFAULT for a bad memory reference
+	if (as == NULL) {
+		return EFAULT;
+	}
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return ENOSYS; /* Unimplemented */
+	// by adding the memsize to the vaddr, we can see if the end of the region
+	// goes into the stack. if it does, we are out of memory so return ENOMEM
+	if (vaddr + memsize >= as->as_stack) {
+		return ENOMEM;
+	}
+
+	// taken from dumbvm to align the region to a page
+	memsize += vaddr & ~(vaddr_t)PAGE_FRAME;
+	vaddr &= PAGE_FRAME;
+	memsize = (memsize + PAGE_SIZE - 1) & PAGE_FRAME;
+
+	// we then allocate memory for this new region
+	region *newRegion = kmalloc(sizeof(region));
+	
+	// checking the kmalloc was successful
+	if (newRegion == NULL) {
+		return ENOMEM;
+	}
+
+	// we can now setup this new region by using the arguments
+	// passed in through the function
+	newRegion->base = vaddr;
+	newRegion->size = memsize;
+
+	// we also want to assign the flags for this region based
+	// on whether it is readable, writeable or executable
+	newRegion->flags = 0;
+	if (readable) {
+		newRegion->flags |= PF_R;
+	}
+	if (writeable) {
+		newRegion->flags |= PF_W;
+	}
+	if (executable) {
+		newRegion->flags |= PF_X;
+	}
+
+	// we also want to set the prevFlags to equal the same
+	newRegion->prevFlags = newRegion->flags;
+
+	// now that we have finished setting up the new region,
+	// we can add it to the head of the linked list of regions
+	newRegion->next = as->regions;
+	as->regions = newRegion;
+
+	// finally we update the address for the heap,
+	// which sits above the last region
+	as->heap = vaddr + memsize;
+
+	return 0;
+
 }
 
 int
@@ -227,9 +273,7 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
+	// TODO: not sure what to write here...
 
 	(void)as;
 
