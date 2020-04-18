@@ -58,16 +58,26 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
-
 	// setup the page table, 1024 = 2^10
     as->pagetable = kmalloc(1024 * sizeof(paddr_t *);
 
-	for(i = 0; i < 1024; i++){
+	// checking the kmalloc was successful
+	if (as->pagetable == NULL) {
+		kfree(as);
+		return NULL;
+	}
+
+	// allocating all entries in the first level page table as null
+	for(int i = 0; i < 1024; i++){
 		as->pagetable[i] = NULL;
 	}
+
+	// next we want to set the list of regions as null
+	as->regions = NULL;
+
+	// and finally we set the addresses for the stack and heap to their initial values
+	as->stack = USERSTACK;
+	as->heap = 0;
 
 	return as;
 }
@@ -95,10 +105,43 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
+	// if there is not an address space to destroy, we simply return
+	if (as == NULL) {
+		return;
+	}
 
+	// we first want to free all pages in the page table
+	for(int i = 0; i < 1024; i++){
+
+		// if the current value in the page table is already NULL,
+		// we can just continue
+		if (as->pagetable[i] == NULL) {
+			continue;
+		}
+
+		// otherwise, we step down into the 2nd level page table
+		// and free all pages in this entry
+		for (int j = 0; j < 1024; j++) {
+			if (as->pagetable[i][j] != 0) {
+				// TODO: not sure if have to use free_kpages or if kfree is fine
+				kfree(as->pagetable[i][j]);
+			}
+		}
+
+		// once we have freed all entries in the second level,
+		// we can free the first level itself
+		kfree(as->pagetable[i]);
+	}
+
+	// then we free all regions in the linked list
+	region *tmp;
+	while (as->regions != NULL) {
+		tmp = as->regions;
+		as->regions = as->regions->next;
+		kfree(tmp);
+	}
+
+	// finally we free the address space itself
 	kfree(as);
 }
 
