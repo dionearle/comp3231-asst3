@@ -273,7 +273,41 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	// TODO: not sure what to write here...
+
+	// if the address space is not valid, we return EFAULT for a bad memory reference
+	if (as == NULL) {
+		return EFAULT;
+	}
+
+	// create the stack as a new region
+
+	// we then allocate memory for this new region
+	region *newRegion = kmalloc(sizeof(region));
+	
+	// checking the kmalloc was successful
+	if (newRegion == NULL) {
+		return ENOMEM;
+	}
+
+	// we can now setup this new region by using the predefined userstack defaults
+	newRegion->base = USERSTACK-USERSTACK_SIZE*PAGE_SIZE;
+	newRegion->size = USERSTACK_SIZE*PAGE_SIZE;
+
+	// we also want to assign the flags readable, writeable or executable
+	newRegion->flags |= PF_R;
+	newRegion->flags |= PF_W;
+	newRegion->flags |= PF_X;
+
+	// we also want to set the prevFlags to equal the same
+	newRegion->prevFlags = newRegion->flags;
+
+	// now that we have finished setting up the new region,
+	// we can add it to the head of the linked list of regions
+	newRegion->next = as->regions;
+	as->regions = newRegion;
+
+	return 0;
+
 
 	(void)as;
 

@@ -46,8 +46,10 @@ typedef struct _region {
         size_t size; // the size of the region
         uint32_t flags; // the flags associated with the region
         uint32_t prevFlags; // used in prepareLoad/completeLoad to keep track of original flag values
-        region *next; // pointer to the next region
+        struct region *next; // pointer to the next region
 } region;
+
+#define USERSTACK_SIZE  16
 
 
 /*
@@ -73,8 +75,7 @@ struct addrspace {
         // linked list of regions
         region *regions;
 
-        // addresses for the stack and heap
-        vaddr_t stack;
+        // addresses for the heap
         vaddr_t heap;
 
 #endif
