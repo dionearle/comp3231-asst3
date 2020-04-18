@@ -40,6 +40,15 @@
 
 struct vnode;
 
+// Represents a region in the address space
+typedef struct _region {
+        vaddr_t base; // the base of the region
+        size_t size; // the size of the region
+        uint32_t flags; // the flags associated with the region
+        uint32_t prevFlags; // used in prepareLoad/completeLoad to keep track of original flag values
+        region *next; // pointer to the next region
+} region;
+
 
 /*
  * Address space - data structure associated with the virtual memory
@@ -58,10 +67,16 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+        // 2 level page table
         paddr_t **pagetable;
 
-        // TODO: might need to implement regions/read/write tracking for as_prepare_load and as_complete_load
+        // linked list of regions
+        region *regions;
+
+        // addresses for the stack and heap
+        vaddr_t stack;
+        vaddr_t heap;
+
 #endif
 };
 
