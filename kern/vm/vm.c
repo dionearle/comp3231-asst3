@@ -29,11 +29,24 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     // load the address space
 	as = proc_getas();
 
-    // load level 1 index, level 2 index, and the offset
-    vaddr_t lvl1_index = vaddr >> 22;
-    vaddr_t lvl2_index = (vaddr >> 12) & 0x3ff;
-    vaddr_t offset = vaddr & 0xfff;
+    // test that the faultaddress falls within a defined region
+	region *currregion = as->regions;
+	while (currregion != NULL) {
+        if(currregion->base <= faultaddress <= currregion->base + currregion->size){
+            break;
+        }
+        currregion = currregion->next;
+	}
 
+    // test that we found a region faultaddress falls within
+    if(currregion == NULL){
+        return EFAULT;
+    }
+
+    // load level 1 index, level 2 index, and the offset
+    vaddr_t lvl1_index = faultaddress >> 22;
+    vaddr_t lvl2_index = (faultaddress >> 12) & 0x3ff;
+    vaddr_t offset = faultaddress & 0xfff;
 
     // test if page table entry is invalid, if so malloc it
     if(as->pagetable[lvl1_index] == NULL){
@@ -54,7 +67,17 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     // load it into the TLB and then return
 	uint32_t ehi, elo;
     ehi = faultaddress;
-    elo = pagetable[lvl1_index][lvl2_index] | TLBLO_DIRTY | TLBLO_VALID;
+    elo = pagetable[lvl1_index][lvl2_index];
+
+    // if any flags set, then set the 'valid' TLB bit
+    if(currregion->flags != 0){
+        elo |= TLBLO_VALID
+    }
+
+    // if the write flag is set, then set the 'dirty' bit
+    if(curregion & PF_W){
+        elo |= TLBLO_DIRTY
+    }
 
    	/* Disable interrupts on this CPU while frobbing the TLB. */
 	spl = splhigh();
