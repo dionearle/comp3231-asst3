@@ -46,7 +46,7 @@ typedef struct _region {
         size_t size; // the size of the region
         uint32_t flags; // the flags associated with the region
         uint32_t prevFlags; // used in prepareLoad/completeLoad to keep track of original flag values
-        struct region *next; // pointer to the next region
+        struct _region *next; // pointer to the next region
 } region;
 
 #define USERSTACK_SIZE  16

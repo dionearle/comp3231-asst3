@@ -60,7 +60,7 @@ as_create(void)
 	}
 
 	// setup the page table, 1024 = 2^10
-    as->pagetable = kmalloc(1024 * sizeof(paddr_t *);
+    as->pagetable = kmalloc(1024 * sizeof(paddr_t *));
 
 	// checking the kmalloc was successful
 	if (as->pagetable == NULL) {
@@ -77,7 +77,6 @@ as_create(void)
 	as->regions = NULL;
 
 	// and finally we set the addresses for the stack and heap to their initial values
-	as->stack = USERSTACK;
 	as->heap = 0;
 
 	return as;
@@ -125,7 +124,7 @@ as_destroy(struct addrspace *as)
 		for (int j = 0; j < 1024; j++) {
 			if (as->pagetable[i][j] != 0) {
 				// TODO: not sure if have to use free_kpages or if kfree is fine
-				kfree(as->pagetable[i][j]);
+				free_kpages(as->pagetable[i][j]);
 			}
 		}
 
@@ -286,6 +285,7 @@ as_complete_load(struct addrspace *as)
         currregion = currregion->next;
 	}
 
+
 	return 0;
 }
 
@@ -328,7 +328,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 
 
-	(void)as;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
