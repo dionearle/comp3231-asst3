@@ -38,6 +38,7 @@
 #include <vm.h>
 #include <proc.h>
 
+#include <elf.h>
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
@@ -197,7 +198,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 	// by adding the memsize to the vaddr, we can see if the end of the region
 	// goes into the stack. if it does, we are out of memory so return ENOMEM
-	if (vaddr + memsize >= as->as_stack) {
+	if (vaddr + memsize >= USERSTACK-USERSTACK_SIZE*PAGE_SIZE) {
 		return ENOMEM;
 	}
 
@@ -251,22 +252,40 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+	// if the address space is not valid, we return EFAULT for a bad memory reference
+	if (as == NULL) {
+		return EFAULT;
+	}
 
-	(void)as;
+	// loop through all regions, and set them to RWX permisions
+	region *currregion = as->regions;
+	while (currregion != NULL) {
+		currregion->flags |= PF_R;
+		currregion->flags |= PF_W;
+		currregion->flags |= PF_X;
+
+        currregion = currregion->next;
+	}
+
 	return 0;
 }
 
 int
 as_complete_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
+	// if the address space is not valid, we return EFAULT for a bad memory reference
+	if (as == NULL) {
+		return EFAULT;
+	}
 
-	(void)as;
+	// loop through all regions, and set them to RWX permisions
+	region *currregion = as->regions;
+	while (currregion != NULL) {
+		currregion->flags = currregion->prevFlags;
+
+        currregion = currregion->next;
+	}
+
 	return 0;
 }
 
