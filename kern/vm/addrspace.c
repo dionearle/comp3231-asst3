@@ -101,7 +101,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
         		newas->pagetable[i][j] = KVADDR_TO_PADDR(alloc_kpages(1));
 
 				// copy the contents of one page to another, using the kseg0 address
-				* (char *)PADDR_TO_KVADDR(newas->pagetable[i][j]) = * (char *)PADDR_TO_KVADDR(newas->pagetable[i][j]);
+				memcpy((void *)PADDR_TO_KVADDR(newas->pagetable[i][j]), (void *)PADDR_TO_KVADDR(old->pagetable[i][j]), PAGE_SIZE);
 			}
 		}
 	}
