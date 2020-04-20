@@ -75,7 +75,7 @@ struct addrspace {
         // linked list of regions
         region *regions;
 
-        // addresses for the heap
+        // address for the heap
         vaddr_t heap;
 
 #endif

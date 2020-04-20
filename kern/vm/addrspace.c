@@ -144,8 +144,7 @@ as_destroy(struct addrspace *as)
 		// and free all pages in this entry
 		for (int j = 0; j < 1024; j++) {
 			if (as->pagetable[i][j] != 0) {
-				// TODO: not sure if have to use free_kpages or if kfree is fine
-				free_kpages(as->pagetable[i][j]);
+				free_kpages(PADDR_TO_KVADDR(as->pagetable[i][j] & PAGE_FRAME));
 			}
 		}
 
@@ -153,6 +152,9 @@ as_destroy(struct addrspace *as)
 		// we can free the first level itself
 		kfree(as->pagetable[i]);
 	}
+
+	// once all pagetables entries are freed, we free the pagetable itself
+	kfree(as->pagetable);
 
 	// then we free all regions in the linked list
 	region *tmp;
@@ -346,10 +348,6 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	// we can add it to the head of the linked list of regions
 	newRegion->next = as->regions;
 	as->regions = newRegion;
-
-	return 0;
-
-
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;

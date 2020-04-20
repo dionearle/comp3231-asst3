@@ -52,9 +52,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     // load level 1 index, level 2 index, and the offset
     vaddr_t lvl1_index = faultaddress >> 22;
     vaddr_t lvl2_index = (faultaddress << 10) >> 22;
-
-    // vaddr_t offset = faultaddress & ~ TLBHI_VPAGE; Not sure what to do with this, it's probalby important to use it somewhere
-
+    
     // test if page table entry is invalid, if so malloc it
     if(as->pagetable[lvl1_index] == NULL){
         as->pagetable[lvl1_index] = kmalloc(1024 * sizeof(paddr_t));
@@ -72,14 +70,14 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     }
 
     // load it into the TLB and then return
-	uint32_t ehi, elo;
-    ehi = faultaddress;
+    uint32_t ehi, elo;
+    ehi = faultaddress & TLBHI_VPAGE;
     elo = as->pagetable[lvl1_index][lvl2_index];
 
     // if any flags set, then set the 'valid' TLB bit
     if(found_region->flags != 0){
         elo |= TLBLO_VALID;
-    }
+    }       
 
     // if the write flag is set, then set the 'dirty' bit
     if(found_region->flags & PF_W){
@@ -91,7 +89,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     tlb_random(ehi, elo);
 	splx(spl);
 
-	return 0;
+    return 0;
 }
 
 /*
