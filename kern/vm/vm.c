@@ -35,6 +35,14 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
 	as = proc_getas();
 
+	if (as == NULL) {
+		/*
+		 * No address space set up. This is probably also a
+		 * kernel fault early in boot.
+		 */
+		return EFAULT;
+	}
+
     // test that the faultaddress falls within a defined region
 	region *found_region = as->regions;
 	while (found_region != NULL) {

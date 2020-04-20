@@ -92,19 +92,30 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
+
 	// copy all entries in the page table that are not null
 	for(int i = 0; i < 1024; i++){
-		if(old->pagetable[i] != NULL){
+		if(old->pagetable[i]){
+            // malloc the level 1 page table entry
 			newas->pagetable[i] = kmalloc(1024 * sizeof(paddr_t));
+            
+            // next copy all the level 2 entries associated
+			for(int j = 0; j < 1024; j++){
+                // test if the original entry has not been defined, if so just copy it to newas
+                if(old->pagetable[i][j] == 0){
+                    newas->pagetable[i][j] = old->pagetable[i][j];
+                } else {
+                    // else allocate the page and copy the physical memory
+                    newas->pagetable[i][j] = KVADDR_TO_PADDR(alloc_kpages(1));
 
-			for(int j = 0; j < 1024; i++){
-        		newas->pagetable[i][j] = KVADDR_TO_PADDR(alloc_kpages(1));
+                    // copy the contents of one page to another, using the kseg0 address
+                    memcpy((void *)PADDR_TO_KVADDR(newas->pagetable[i][j]), (void *)PADDR_TO_KVADDR(old->pagetable[i][j]), PAGE_SIZE);
+                }
 
-				// copy the contents of one page to another, using the kseg0 address
-				memcpy((void *)PADDR_TO_KVADDR(newas->pagetable[i][j]), (void *)PADDR_TO_KVADDR(old->pagetable[i][j]), PAGE_SIZE);
 			}
 		}
 	}
+
 
 	// loop through all regions, and copy them to newas
 	int writable, readable, executable;
@@ -295,20 +306,21 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
-		// if the address space is not valid, we return EFAULT for a bad memory reference
-		if (as == NULL) {
-			return EFAULT;
-		}
+    // if the address space is not valid, we return EFAULT for a bad memory reference
+    if (as == NULL) {
+        return EFAULT;
+    }
 
-		// loop through all regions, and set them to RWX permisions
-		region *curr_region = as->regions;
-		while (curr_region != NULL) {
-			curr_region->flags = curr_region->prevFlags;
+    // loop through all regions, and set them to RWX permisions
+    region *curr_region = as->regions;
+    while (curr_region != NULL) {
+        curr_region->flags = curr_region->prevFlags;
 
-			curr_region = curr_region->next;
-		}
+        curr_region = curr_region->next;
+    }
 
-	(void)as;
+    // flush the TLB since it will have outdated flags
+
 
 	return 0;
 }
