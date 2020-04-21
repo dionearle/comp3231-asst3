@@ -54,13 +54,15 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
     // test that we found a region faultaddress falls within
     if(found_region == NULL){
-        return EFAULT;
+        if (!(faultaddress < as->stack && faultaddress > (as->stack - 16 * PAGE_SIZE))) {
+            return EFAULT;
+        }
     }
 
     // load level 1 index, level 2 index, and the offset
     vaddr_t lvl1_index = faultaddress >> 22;
     vaddr_t lvl2_index = (faultaddress << 10) >> 22;
-    
+
     // test if page table entry is invalid, if so malloc it
     if(as->pagetable[lvl1_index] == NULL){
         as->pagetable[lvl1_index] = kmalloc(1024 * sizeof(paddr_t));
@@ -72,9 +74,31 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 
     // test if page is not defined, if so malloc it and initialize it to zero
     if(as->pagetable[lvl1_index][lvl2_index] == 0){
-        as->pagetable[lvl1_index][lvl2_index] = KVADDR_TO_PADDR(alloc_kpages(1));
 
-        bzero((void *)PADDR_TO_KVADDR(as->pagetable[lvl1_index][lvl2_index]), PAGE_SIZE);
+        // used to keep track of whether the region is write protected or not
+        uint32_t isDirty = 0;
+
+        // we loop through all regions
+        region *curr = as->regions;
+        while (curr != NULL) {
+
+            // if we find the region we are currently in, we check the flags for this region.
+            // If it is dirty, then we update the isDirty counter
+            if (!(faultaddress >= (curr->base + curr->size * PAGE_SIZE) && faultaddress < curr->base)) {
+                if ((curr->flags & PF_W) == PF_W) {
+                    isDirty = TLBLO_DIRTY;
+                }
+                break;
+            }
+
+            curr = curr->next;
+        }
+
+        // finally we setup the page
+        vaddr_t virtualBase = alloc_kpages(1);
+        bzero((void *)virtualBase, PAGE_SIZE);
+        paddr_t physicalBase = KVADDR_TO_PADDR(virtualBase);
+        as->pagetable[lvl1_index][lvl2_index] = (physicalBase & PAGE_FRAME) | TLBLO_VALID | isDirty;
     }
 
     // load it into the TLB and then return
@@ -82,17 +106,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     ehi = faultaddress & TLBHI_VPAGE;
     elo = as->pagetable[lvl1_index][lvl2_index];
 
-    // if any flags set, then set the 'valid' TLB bit
-    if(found_region->flags != 0){
-        elo |= TLBLO_VALID;
-    }       
-
-    // if the write flag is set, then set the 'dirty' bit
-    if(found_region->flags & PF_W){
-        elo |= TLBLO_DIRTY;
-    }
-
-   	/* Disable interrupts on this CPU while frobbing the TLB. */
+    /* Disable interrupts on this CPU while frobbing the TLB. */
 	int spl = splhigh();
     tlb_random(ehi, elo);
 	splx(spl);

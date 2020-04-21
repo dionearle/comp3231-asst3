@@ -69,6 +69,8 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
+        vaddr_t stack;
+
         // 2 level page table
         paddr_t **pagetable;
 

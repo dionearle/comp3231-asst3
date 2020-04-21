@@ -78,6 +78,7 @@ as_create(void)
 
 	// and finally we set the addresses for the stack and heap to their initial values
 	as->heap = 0;
+	as->stack = USERSTACK;
 
 	return as;
 }
@@ -92,6 +93,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		return ENOMEM;
 	}
 
+	// used to keep track of whether the frame is dirty or not
+	uint32_t isDirty = 0;
 
 	// copy all entries in the page table that are not null
 	for(int i = 0; i < 1024; i++){
@@ -105,29 +108,48 @@ as_copy(struct addrspace *old, struct addrspace **ret)
                 if(old->pagetable[i][j] == 0){
                     newas->pagetable[i][j] = old->pagetable[i][j];
                 } else {
-                    // else allocate the page and copy the physical memory
-                    newas->pagetable[i][j] = KVADDR_TO_PADDR(alloc_kpages(1));
-
-                    // copy the contents of one page to another, using the kseg0 address
-                    memcpy((void *)PADDR_TO_KVADDR(newas->pagetable[i][j]), (void *)PADDR_TO_KVADDR(old->pagetable[i][j]), PAGE_SIZE);
+					// else allocate the page and copy the physical memory
+					vaddr_t copyFrame = alloc_kpages(1);
+					bzero((void *)copyFrame,PAGE_SIZE);
+					memmove((void *)copyFrame, (const void *)PADDR_TO_KVADDR(old->pagetable[i][j] & PAGE_FRAME), PAGE_SIZE);
+                    isDirty = old->pagetable[i][j] & TLBLO_DIRTY;
+                	newas->pagetable[i][j] = (KVADDR_TO_PADDR(copyFrame) & PAGE_FRAME) | TLBLO_VALID | isDirty;
                 }
 
 			}
 		}
 	}
 
-
 	// loop through all regions, and copy them to newas
-	int writable, readable, executable;
+	region *new_region = NULL;
 	region *curr_region = old->regions;
 	while (curr_region != NULL) {
-		writable = curr_region->flags & PF_W;
-		readable = curr_region->flags & PF_R;
-		executable = curr_region->flags & PF_X;
 
-		as_define_region(newas, curr_region->base, curr_region->size,
-						 readable, writable, executable);
-        curr_region = curr_region->next;
+		// we then allocate memory for this new region
+		region *tmp = kmalloc(sizeof(region));
+		
+		// checking the kmalloc was successful
+		if (tmp == NULL) {
+			return ENOMEM;
+		}
+
+		// we then setup all of the values for this region
+		tmp->base = curr_region->base;
+		tmp->size = curr_region->size;
+		tmp->flags = curr_region->flags;
+		tmp->prevFlags = curr_region->prevFlags;
+		tmp->next = NULL;
+
+		// if this is the first in the list, we set new_region to equal it
+		if (new_region == NULL) {
+			newas->regions = tmp;
+			new_region = tmp;
+		} else {
+			// otherwise it is appended to the end of the list
+			new_region->next = tmp;
+		}
+
+		curr_region = curr_region->next;
 	}
 
 	*ret = newas;
@@ -178,7 +200,6 @@ as_destroy(struct addrspace *as)
 	// finally we free the address space itself
 	kfree(as);
 }
-
 
 // copied from dumbvm.c
 void
@@ -231,7 +252,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 
 	// by adding the memsize to the vaddr, we can see if the end of the region
 	// goes into the stack. if it does, we are out of memory so return ENOMEM
-	if (vaddr + memsize >= USERSTACK-USERSTACK_SIZE*PAGE_SIZE) {
+	if (vaddr + memsize >= as->stack) {
 		return ENOMEM;
 	}
 
@@ -328,38 +349,10 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-
-	// if the address space is not valid, we return EFAULT for a bad memory reference
-	if (as == NULL) {
-		return EFAULT;
-	}
-
-	// create the stack as a new region
-
-	// we then allocate memory for this new region
-	region *newRegion = kmalloc(sizeof(region));
-	
-	// checking the kmalloc was successful
-	if (newRegion == NULL) {
-		return ENOMEM;
-	}
-
-	// we can now setup this new region by using the predefined userstack defaults
-	newRegion->base = USERSTACK-USERSTACK_SIZE*PAGE_SIZE;
-	newRegion->size = USERSTACK_SIZE*PAGE_SIZE;
-
-	// we also want to assign the flags readable, writeable or executable
-	newRegion->flags |= PF_R;
-	newRegion->flags |= PF_W;
-	newRegion->flags |= PF_X;
-
-	// we also want to set the prevFlags to equal the same
-	newRegion->prevFlags = newRegion->flags;
-
-	// now that we have finished setting up the new region,
-	// we can add it to the head of the linked list of regions
-	newRegion->next = as->regions;
-	as->regions = newRegion;
+	/*
+	 * Write this.
+	 */
+	(void)as;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
