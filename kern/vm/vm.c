@@ -44,9 +44,13 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	}
 
     // test that the faultaddress falls within a defined region
+    uint32_t isDirty = 0;
 	region *found_region = as->regions;
 	while (found_region != NULL) {
         if(found_region->base <= faultaddress && faultaddress < found_region->base + found_region->size){
+            if ((found_region->flags & PF_W) == PF_W) {
+                isDirty = TLBLO_DIRTY;
+            }
             break;
         }
         found_region = found_region->next;
@@ -57,6 +61,9 @@ vm_fault(int faulttype, vaddr_t faultaddress)
         if (!(faultaddress < as->stack && faultaddress > (as->stack - 16 * PAGE_SIZE))) {
             return EFAULT;
         }
+
+        // else we're in the stack, so set the dirtybit
+        isDirty = TLBLO_DIRTY;
     }
 
     // load level 1 index, level 2 index, and the offset
@@ -76,24 +83,6 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     if(as->pagetable[lvl1_index][lvl2_index] == 0){
 
         // used to keep track of whether the region is write protected or not
-        uint32_t isDirty = 0;
-
-        // we loop through all regions
-        region *curr = as->regions;
-        while (curr != NULL) {
-
-            // if we find the region we are currently in, we check the flags for this region.
-            // If it is dirty, then we update the isDirty counter
-            if (!(faultaddress >= (curr->base + curr->size * PAGE_SIZE) && faultaddress < curr->base)) {
-                if ((curr->flags & PF_W) == PF_W) {
-                    isDirty = TLBLO_DIRTY;
-                }
-                break;
-            }
-
-            curr = curr->next;
-        }
-
         // finally we setup the page
         vaddr_t virtualBase = alloc_kpages(1);
         bzero((void *)virtualBase, PAGE_SIZE);
@@ -104,7 +93,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
     // load it into the TLB and then return
     uint32_t ehi, elo;
     ehi = faultaddress & TLBHI_VPAGE;
-    elo = as->pagetable[lvl1_index][lvl2_index];
+    elo = as->pagetable[lvl1_index][lvl2_index] | as->loadingbit;
 
     /* Disable interrupts on this CPU while frobbing the TLB. */
 	int spl = splhigh();

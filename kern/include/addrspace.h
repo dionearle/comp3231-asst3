@@ -74,6 +74,9 @@ struct addrspace {
         // 2 level page table
         paddr_t **pagetable;
 
+        // loading bit, set when prepare_load is called
+        uint32_t loadingbit;
+
         // linked list of regions
         region *regions;
 

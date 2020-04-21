@@ -80,6 +80,9 @@ as_create(void)
 	as->heap = 0;
 	as->stack = USERSTACK;
 
+    // set the loadingbit to false
+    as->loadingbit = 0;
+
 	return as;
 }
 
@@ -311,15 +314,8 @@ as_prepare_load(struct addrspace *as)
 		return EFAULT;
 	}
 
-	// loop through all regions, and set them to RWX permisions
-	region *curr_region = as->regions;
-	while (curr_region != NULL) {
-		curr_region->flags |= PF_R;
-		curr_region->flags |= PF_W;
-		curr_region->flags |= PF_X;
-
-        curr_region = curr_region->next;
-	}
+	// set the loading bit
+	as->loadingbit = TLBLO_DIRTY;
 
 	return 0;
 }
@@ -332,16 +328,19 @@ as_complete_load(struct addrspace *as)
         return EFAULT;
     }
 
-    // loop through all regions, and set them to RWX permisions
-    region *curr_region = as->regions;
-    while (curr_region != NULL) {
-        curr_region->flags = curr_region->prevFlags;
-
-        curr_region = curr_region->next;
-    }
+	// reset the loading bit
+	as->loadingbit = 0;
 
     // flush the TLB since it will have outdated flags
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	int i, spl;
+	spl = splhigh();
 
+	for (i=0; i<NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+
+	splx(spl);
 
 	return 0;
 }
